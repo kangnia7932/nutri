@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 영양사: 음식 분석 및 식단 추천</title>
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --bg-color: #f9f9f9;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 2rem;
+            text-align: center;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            cursor: pointer;
+        }
+        #imagePreview {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: none;
+        }
+        button {
+            width: 100%;
+            padding: 1rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+        #loading {
+            display: none;
+            text-align: center;
+            margin-top: 1rem;
+            font-weight: bold;
+            color: #666;
+        }
+        #result {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background-color: #f1f8e9;
+            border-radius: 8px;
+            display: none;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🥗 AI 영양사</h1>
+        <p style="text-align: center; color: #666;">음식 사진을 올리면 칼로리를 분석하고 부족한 영양소를 채울 음식을 추천해 드립니다.</p>
+
+        <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+            <p>📸 클릭하여 음식 사진 업로드</p>
+            <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            <img id="imagePreview" alt="미리보기">
+        </div>
+
+        <button id="analyzeBtn" disabled>분석 시작하기</button>
+        <div id="loading">AI가 영양소를 분석하고 있습니다...⏳</div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const loading = document.getElementById('loading');
+        const resultDiv = document.getElementById('result');
+
+        let base64Image = '';
+        let mimeType = '';
+
+        // 이미지 업로드 및 미리보기 처리
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            mimeType = file.type;
+            const reader = new FileReader();
+            
+            reader.onload = function(event) {
+                imagePreview.src = event.target.result;
+                imagePreview.style.display = 'block';
+                
+                // Gemini API에 보낼 순수 base64 데이터만 추출 (data:image/jpeg;base64, 부분 제거)
+                base64Image = event.target.result.split(',')[1];
+                analyzeBtn.disabled = false;
+            };
+            
+            reader.readAsDataURL(file);
+        });
+
+        // 서버리스 함수(api/generate.js) 호출
+        analyzeBtn.addEventListener('click', async () => {
+            if (!base64Image) return;
+
+            analyzeBtn.disabled = true;
+            loading.style.display = 'block';
+            resultDiv.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ imageBase64: base64Image, mimeType: mimeType })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || '분석 중 오류가 발생했습니다.');
+                }
+
+                resultDiv.innerHTML = data.result.replace(/\n/g, '<br>');
+                resultDiv.style.display = 'block';
+            } catch (error) {
+                alert(error.message);
+            } finally {
+                loading.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
